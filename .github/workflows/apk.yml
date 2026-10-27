@@ -11,18 +11,22 @@ jobs:
   apk:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v5
         with:
           node-version: 20
 
-      - uses: actions/setup-java@v4
+      - uses: actions/setup-java@v5
         with:
           distribution: temurin
           java-version: 21
 
       - uses: android-actions/setup-android@v3
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
 
       - name: Criar página offline
         run: |
@@ -34,10 +38,11 @@ jobs:
           HTML
 
       - name: Criar ícone da Aztec
+        continue-on-error: true
         run: |
-          pip install pillow
+          python -m pip install pillow
           mkdir -p assets
-          python3 - << 'PY'
+          python - << 'PY'
           from PIL import Image, ImageDraw, ImageFont
           import glob
           navy=(18,38,58); amber=(232,163,23)
