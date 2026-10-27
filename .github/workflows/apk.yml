@@ -1,0 +1,98 @@
+name: Gerar APK do Gestão Aztec
+
+on:
+  push:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  apk:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 21
+
+      - uses: android-actions/setup-android@v3
+
+      - name: Criar página offline
+        run: |
+          mkdir -p www
+          cat > www/index.html << 'HTML'
+          <!DOCTYPE html><html lang="pt-BR"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Gestão Aztec</title>
+          <style>body{margin:0;min-height:100vh;display:grid;place-items:center;background:#12263a;color:#fff;font-family:Arial,sans-serif;text-align:center;padding:24px}button{background:#e8a317;color:#12263a;border:0;border-radius:8px;padding:12px 20px;font-weight:bold;font-size:16px;margin-top:16px}</style></head>
+          <body><div><h2>Gestão Aztec</h2><p>Sem conexão com a internet.<br>Verifique o Wi-Fi ou os dados móveis.</p><button onclick="location.href='https://gestao-aztec.netlify.app'">Tentar de novo</button></div></body></html>
+          HTML
+
+      - name: Criar ícone da Aztec
+        run: |
+          pip install pillow
+          mkdir -p assets
+          python3 - << 'PY'
+          from PIL import Image, ImageDraw, ImageFont
+          import glob
+          navy=(18,38,58); amber=(232,163,23)
+          f=(glob.glob('/usr/share/fonts/**/DejaVuSans-Bold.ttf',recursive=True)+glob.glob('/usr/share/fonts/**/*Bold*.ttf',recursive=True))
+          def fonte(t):
+              try: return ImageFont.truetype(f[0],t)
+              except Exception: return ImageFont.load_default(size=t)
+          def logo(size,bg=True,scale=1.0):
+              im=Image.new('RGBA',(size,size),navy+(255,) if bg else (0,0,0,0)); d=ImageDraw.Draw(im)
+              s=int(size*0.56*scale); x0=(size-s)//2
+              d.rounded_rectangle([x0,x0,x0+s,x0+s],radius=int(s*0.2),fill=amber)
+              ft=fonte(int(s*0.7)); bb=d.textbbox((0,0),'A',font=ft)
+              d.text((size/2-(bb[2]-bb[0])/2-bb[0],size/2-(bb[3]-bb[1])/2-bb[1]),'A',font=ft,fill=navy)
+              return im
+          logo(1024).save('assets/icon-only.png')
+          logo(1024,bg=False,scale=0.8).save('assets/icon-foreground.png')
+          Image.new('RGBA',(1024,1024),navy+(255,)).save('assets/icon-background.png')
+          for n in ['splash.png','splash-dark.png']:
+              sp=Image.new('RGBA',(2732,2732),navy+(255,)); l=logo(700,bg=False); sp.paste(l,(1016,1016),l); sp.save('assets/'+n)
+          PY
+
+      - name: Instalar dependências
+        run: npm install
+
+      - name: Criar projeto Android
+        run: npx cap add android
+
+      - name: Ícone e tela de abertura
+        run: npx @capacitor/assets generate --android --iconBackgroundColor '#12263a' --splashBackgroundColor '#12263a' || echo "Mantendo ícone padrão"
+
+      - name: Permissão de câmera
+        run: |
+          M=android/app/src/main/AndroidManifest.xml
+          grep -q 'android.permission.CAMERA' $M || sed -i 's#</manifest>#    <uses-permission android:name="android.permission.CAMERA" />\n</manifest>#' $M
+
+      - name: Sincronizar
+        run: npx cap sync android
+
+      - name: Gerar APK
+        run: |
+          cd android
+          chmod +x gradlew
+          ./gradlew assembleDebug
+          cp app/build/outputs/apk/debug/app-debug.apk ../GestaoAztec.apk
+
+      - name: Guardar o APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: GestaoAztec-apk
+          path: GestaoAztec.apk
+
+      - name: Publicar para download
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: apk-${{ github.run_number }}
+          name: Gestão Aztec – versão ${{ github.run_number }}
+          body: Baixe o arquivo GestaoAztec.apk e instale no celular Android.
+          files: GestaoAztec.apk
