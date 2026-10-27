@@ -1,0 +1,13 @@
+{
+  "appId": "br.com.aztecengenharia.gestao",
+  "appName": "Gestão Aztec",
+  "webDir": "www",
+  "server": {
+    "url": "https://gestao-aztec.netlify.app",
+    "androidScheme": "https",
+    "cleartext": false
+  },
+  "android": {
+    "allowMixedContent": false
+  }
+}
